@@ -1,0 +1,10 @@
+# Arquivo .gitignore
+
+# Ignorar dependências do Node
+node_modules
+
+# Ignorar o cache da sessão do whatsapp-web.js
+.wwebjs_cache/
+
+# Ignorar o arquivo de variáveis de ambiente
+.env

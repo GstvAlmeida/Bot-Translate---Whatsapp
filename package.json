@@ -1,0 +1,20 @@
+{
+  "name": "seu-projeto-whatsapp",
+  "version": "1.0.0",
+  "description": "Bot de WhatsApp com integração Gemini",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node chatbot.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.14.1",
+    "dotenv": "^16.5.0",
+    "moment-timezone": "^0.5.45",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.24.1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
