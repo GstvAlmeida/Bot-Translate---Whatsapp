@@ -74,7 +74,7 @@ client.on('message', async msg => {
         await client.sendMessage(userNumber, textoTraduzido);
 
         // Mensagem opcional para informar que o modo foi desativado
-        await client.sendMessage(userNumber, 'Traduzido! Para traduzir novamente, digite `/ia`');
+        await client.sendMessage(userNumber, 'Para traduzir novamente, digite `/ia`');
 
         // Limpa o estado do usuário para que ele precise digitar /ia de novo
         delete userStates[userNumber];
