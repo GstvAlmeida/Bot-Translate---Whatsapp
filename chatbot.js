@@ -1,22 +1,17 @@
-// Importações de bibliotecas
+// Importações de bibliotecas (sem alteração)
 import qrcode from 'qrcode-terminal';
 import { Client } from 'whatsapp-web.js';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from 'dotenv';
 
-// --- CONFIGURAÇÃO DAS APIS ---
+// --- CONFIGURAÇÃO DAS APIS (sem alteração) ---
 
-// Carrega as variáveis de ambiente (sua chave da API do Google)
 dotenv.config();
-
-// Configura o cliente do WhatsApp
 const client = new Client();
-
-// Configura a API do Gemini
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
-// --- INICIALIZAÇÃO DO WHATSAPP ---
+// --- INICIALIZAÇÃO DO WHATSAPP (sem alteração) ---
 
 client.on('qr', qr => {
     qrcode.generate(qr, { small: true });
@@ -28,68 +23,86 @@ client.on('ready', () => {
 
 client.initialize();
 
-// --- LÓGICA DO CHATBOT ---
+// --- LÓGICA DO CHATBOT (REESTRUTURADA) ---
 
-const delay = ms => new Promise(res => setTimeout(res, ms));
+// 1. Objeto para guardar as SESSÕES de chat de cada usuário
+// Em vez de 'userStates', vamos guardar o objeto de chat inteiro.
+const userChatSessions = {};
 
-// Objeto para guardar o estado da conversa de cada usuário
-const userStates = {};
-
-// Função para chamar o Gemini e traduzir o texto (sem alterações)
-async function traduzirComGemini(texto) {
-    console.log(`Traduzindo o texto: "${texto}"`);
-    try {
-        const prompt = `Traduza o seguinte texto para o inglês. Retorne apenas o texto traduzido, sem nenhuma explicação ou frase adicional:\n\n"${texto}"`;
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        return response.text();
-    } catch (error) {
-        console.error("Erro ao chamar a API do Gemini:", error);
-        return "Desculpe, não consegui traduzir agora. Tente novamente mais tarde.";
-    }
-}
+// 2. Histórico de instruções para o Gemini
+// Este é o "cérebro" do seu tradutor. Ele ensina o Gemini a se comportar.
+const instructionHistory = [
+  {
+    role: "user",
+    // Instrução clara e direta para o modelo.
+    parts: [{ text: "Você é um assistente de tradução de português para inglês. Sua única função é traduzir o texto que eu enviar. Responda APENAS com a tradução direta, sem adicionar saudações, explicações ou qualquer texto extra como 'A tradução é:'." }],
+  },
+  {
+    role: "model",
+    // Simula a confirmação do modelo, reforçando a instrução.
+    parts: [{ text: "Entendido. A partir de agora, responderei apenas com a tradução para o inglês do texto que você me enviar." }],
+  },
+];
 
 
 // Listener de mensagens do WhatsApp (LÓGICA PRINCIPAL ALTERADA)
 client.on('message', async msg => {
-    // Ignora mensagens de grupos para não poluir conversas
+    // Ignora mensagens de grupos (sem alteração)
     if (!msg.from.endsWith('@c.us')) {
         return;
     }
 
-    const chat = await msg.getChat();
     const userMessage = msg.body.trim();
     const userNumber = msg.from;
+    const chat = await msg.getChat();
 
-    // 1. VERIFICA SE O USUÁRIO ESTÁ EM MODO DE TRADUÇÃO
-    // Se o estado for 'awaiting_translation', a mensagem atual é o texto a ser traduzido.
-    if (userStates[userNumber] === 'awaiting_translation') {
-        
-        await chat.sendStateTyping();
-        
-        // Pega a mensagem e envia para a função de tradução
-        const textoTraduzido = await traduzirComGemini(userMessage);
-        
+    // COMANDO PARA SAIR/RESETAR O MODO DE TRADUÇÃO
+    if (userMessage.toLowerCase() === '/sair') {
+        // Se o usuário tinha uma sessão ativa, apague-a.
+        if (userChatSessions[userNumber]) {
+            delete userChatSessions[userNumber];
+            await client.sendMessage(userNumber, 'Modo tradutor desativado. 👋');
+        }
+        return; // Encerra o processamento
+    }
+
+    // Verifica se já existe uma sessão de chat para este usuário
+    let userChat = userChatSessions[userNumber];
+
+    // Se NÃO existir uma sessão de chat...
+    if (!userChat) {
+        // ...e a mensagem for o comando para começar...
+        if (userMessage.toLowerCase() === '/ia') {
+            await chat.sendStateTyping();
+
+            // ...inicia uma nova sessão de chat com as instruções!
+            userChat = model.startChat({
+                history: instructionHistory,
+            });
+            
+            // Armazena a nova sessão para o usuário
+            userChatSessions[userNumber] = userChat;
+            
+            await client.sendMessage(userNumber, 'Olá! Modo tradutor ativado. ✍️\n\nEnvie o que deseja traduzir. Para sair, digite `/sair`.');
+        }
+        // Se não houver sessão e a mensagem não for /ia, o bot não faz nada.
+        return;
+    }
+
+    // Se JÁ EXISTE uma sessão de chat, qualquer mensagem enviada é para tradução.
+    await chat.sendStateTyping();
+
+    try {
+        // Envia a mensagem do usuário para o chat existente do Gemini
+        const result = await userChat.sendMessage(userMessage);
+        const response = result.response;
+        const textoTraduzido = response.text();
+
         // Envia a tradução de volta para o usuário
         await client.sendMessage(userNumber, textoTraduzido);
 
-        // Mensagem opcional para informar que o modo foi desativado
-        await client.sendMessage(userNumber, 'Para traduzir novamente, digite `/ia`');
-
-        // Limpa o estado do usuário para que ele precise digitar /ia de novo
-        delete userStates[userNumber];
-        return; // Encerra o processamento aqui
+    } catch (error) {
+        console.error("Erro na tradução com a sessão de chat:", error);
+        await client.sendMessage(userNumber, "Desculpe, ocorreu um erro. Tente novamente ou digite `/sair` para reiniciar.");
     }
-
-    // 2. VERIFICA SE O COMANDO PARA ATIVAR A TRADUÇÃO FOI ENVIADO
-    if (userMessage.toLowerCase() === '/ia') {
-        await chat.sendStateTyping();
-        await delay(500);
-        await client.sendMessage(userNumber, 'Olá! Modo tradutor ativado. ✍️\n\nEnvie a próxima mensagem com o que você deseja traduzir para o inglês.');
-        
-        // Define o estado do usuário como "esperando pela próxima mensagem para traduzir"
-        userStates[userNumber] = 'awaiting_translation';
-    }
-
-    // Se a mensagem não for '/ia' e o usuário não estiver em modo de tradução, o bot não faz nada.
 });

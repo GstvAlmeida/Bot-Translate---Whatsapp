@@ -1,5 +1,5 @@
 {
-  "name": "seu-projeto-whatsapp",
+  "name": "projeto-whatsapp",
   "version": "1.0.0",
   "description": "Bot de WhatsApp com integração Gemini",
   "main": "index.js",
